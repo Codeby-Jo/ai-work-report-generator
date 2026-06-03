@@ -41,6 +41,19 @@ CODE_EXTENSIONS = {
 
 # App names → activity category mapping
 APP_CATEGORY_MAP = {
+    # Meetings (High priority - check before generic browsers)
+    "zoom":         "Meeting",
+    "meet":         "Meeting",
+    "teams":        "Meeting",
+    "slack":        "Meeting",
+    
+    # Documentation
+    "notion":       "Documentation",
+    "obsidian":     "Documentation",
+    "libreoffice":  "Documentation",
+    "word":         "Documentation",
+
+    # Coding
     "code":         "Coding",
     "vscode":       "Coding",
     "pycharm":      "Coding",
@@ -51,19 +64,13 @@ APP_CATEGORY_MAP = {
     "terminal":     "Coding",
     "konsole":      "Coding",
     "gnome-terminal": "Coding",
+    
+    # Browsers (Low priority - check last)
     "chrome":       "Research",
     "chromium":     "Research",
     "firefox":      "Research",
     "brave":        "Research",
     "safari":       "Research",
-    "zoom":         "Meeting",
-    "meet":         "Meeting",
-    "teams":        "Meeting",
-    "slack":        "Meeting",
-    "notion":       "Documentation",
-    "obsidian":     "Documentation",
-    "libreoffice":  "Documentation",
-    "word":         "Documentation",
 }
 
 
@@ -74,18 +81,43 @@ APP_CATEGORY_MAP = {
 def get_idle_seconds() -> float:
     """
     Return how many seconds the user has been idle (no keyboard/mouse activity).
-    Uses xprintidle on Linux. Falls back to 0 (assume active) if unavailable.
+    Supports Linux (xprintidle) and Windows (GetLastInputInfo).
+    Falls back to 0 (assume active) if unavailable.
     """
-    try:
-        import subprocess
-        result = subprocess.run(
-            ["xprintidle"],
-            capture_output=True, text=True, timeout=2
-        )
-        if result.returncode == 0:
-            return int(result.stdout.strip()) / 1000.0  # ms → seconds
-    except (FileNotFoundError, Exception):
-        pass
+    system = platform.system()
+
+    if system == "Linux":
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["xprintidle"],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                return int(result.stdout.strip()) / 1000.0  # ms → seconds
+        except (FileNotFoundError, Exception):
+            pass
+
+    elif system == "Windows":
+        try:
+            import ctypes
+            
+            class LASTINPUTINFO(ctypes.Structure):
+                _fields_ = [
+                    ("cbSize", ctypes.c_uint),
+                    ("dwTime", ctypes.c_uint)
+                ]
+                
+            lastInputInfo = LASTINPUTINFO()
+            lastInputInfo.cbSize = ctypes.sizeof(lastInputInfo)
+            
+            if ctypes.windll.user32.GetLastInputInfo(ctypes.byref(lastInputInfo)):
+                # GetTickCount returns time since system started in ms
+                millis = ctypes.windll.kernel32.GetTickCount() - lastInputInfo.dwTime
+                return millis / 1000.0
+        except Exception:
+            pass
+
     return 0.0  # fallback: assume user is active
 
 
@@ -138,6 +170,29 @@ def _idle_monitor_loop(
                 "Uncategorised"
             )
             print("[TRACKER] Auto-resumed — user activity detected")
+
+
+def _db_sync_loop(
+    stop_event: threading.Event,
+    manual_pause_flag: threading.Event,
+    paused_flag: threading.Event,
+):
+    """
+    Checks the database 'tracker_state' every 2 seconds.
+    This allows a command from Terminal 2 (main.py --pause) to communicate
+    with the running process in Terminal 1.
+    """
+    while not stop_event.is_set():
+        state = database.get_tracker_state()
+        if state == "paused" and not manual_pause_flag.is_set():
+            manual_pause_flag.set()
+            paused_flag.set()
+        elif state == "running" and manual_pause_flag.is_set():
+            manual_pause_flag.clear()
+            # We clear paused_flag ONLY if we are resuming from a manual pause
+            # (Idle monitor might still keep it paused if idle, but this is simple enough)
+            paused_flag.clear()
+        stop_event.wait(timeout=2.0)
 
 
 def _classify_extension(filepath: str) -> str:
@@ -333,9 +388,12 @@ class Tracker:
 
     def __init__(self):
         self._stop_event = threading.Event()
-        self._paused_flag = threading.Event()   # SET = paused
-        self._observer: Observer | None = None
-        self._poll_thread: threading.Thread | None = None
+        self._paused_flag = threading.Event()
+        self._manual_pause_flag = threading.Event()
+        self._observer = None
+        self._poll_thread = None
+        self._idle_thread = None
+        self._sync_thread = None
 
     def start(self):
         """Start the file watcher and app poller."""
@@ -356,14 +414,23 @@ class Tracker:
         self._observer.schedule(event_handler, WORKSPACE_DIR, recursive=True)
         self._observer.start()
 
-        # Start app poller thread
-        self._poll_thread = threading.Thread(
-            target=_app_poll_loop,
-            args=(self._stop_event, self._paused_flag),
+        # 3. Idle monitor thread
+        self._idle_thread = threading.Thread(
+            target=_idle_monitor_loop,
+            args=(self._stop_event, self._manual_pause_flag, self._paused_flag),
             daemon=True,
-            name="AppPoller",
+            name="IdleMonitor",
         )
-        self._poll_thread.start()
+        self._idle_thread.start()
+
+        # 4. DB Sync thread (Inter-Process Communication)
+        self._sync_thread = threading.Thread(
+            target=_db_sync_loop,
+            args=(self._stop_event, self._manual_pause_flag, self._paused_flag),
+            daemon=True,
+            name="DbSync",
+        )
+        self._sync_thread.start()
 
         print(f"[TRACKER] Started. Watching: {WORKSPACE_DIR}")
         print(f"[TRACKER] App polling every {APP_POLL_INTERVAL}s")
