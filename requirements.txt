@@ -1,0 +1,3 @@
+# Phase 1 dependencies only
+watchdog==4.0.1
+psutil==5.9.8
