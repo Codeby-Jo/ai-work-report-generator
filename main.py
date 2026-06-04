@@ -1,12 +1,13 @@
 """
-main.py — Phase 1 CLI for AI Work Report Generator
+main.py — CLI for AI Work Report Generator
 
-Phase 1 commands only:
+Commands:
     python main.py --start      Start the background activity tracker
     python main.py --stop       Stop the tracker
     python main.py --pause      Pause tracking (privacy control)
     python main.py --resume     Resume tracking
     python main.py --status     Show today's activity log
+    python main.py --generate   Generate the AI EOD report (Phase 2)
 """
 
 import sys
@@ -80,10 +81,43 @@ def cmd_status():
     print()
 
 
+def cmd_generate():
+    """Trigger the OpenAI report generator."""
+    import generator
+    print("\n[INFO] Starting Phase 2: AI Report Generation...")
+    
+    # Check if GROQ_API_KEY is available
+    if not os.getenv("GROQ_API_KEY"):
+        print("[ERROR] GROQ_API_KEY is not set!")
+        print("Please create a .env file and add your API key like this:")
+        print("GROQ_API_KEY=gsk_your_key_here")
+        return
+
+    report = generator.generate_report()
+    if report:
+        print("\n" + "="*50)
+        print(f"📄 REPORT: {report['report_title']}")
+        print("="*50)
+        print(f"\n📝 Summary:\n{report['summary']}\n")
+        print("✅ Key Tasks:")
+        for task in report['key_tasks']:
+            print(f"  - {task}")
+        print(f"\n🛑 Blockers:\n  {report['blockers']}")
+        print("="*50 + "\n")
+        
+        # --- PHASE 3: Template Filling ---
+        import template_filler
+        template_filler.fill_template(report)
+        
+    else:
+        print("[ERROR] Could not generate report. Check logs above.")
+
+
+
 def main():
     parser = argparse.ArgumentParser(
         prog="python main.py",
-        description="AI Work Report Generator — Phase 1 (Tracker)",
+        description="AI Work Report Generator CLI",
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--start",  action="store_true", help="Start the tracker")
@@ -91,6 +125,7 @@ def main():
     group.add_argument("--pause",  action="store_true", help="Pause tracking")
     group.add_argument("--resume", action="store_true", help="Resume tracking")
     group.add_argument("--status", action="store_true", help="Show today's activity")
+    group.add_argument("--generate", action="store_true", help="Generate AI work report")
 
     args = parser.parse_args()
 
@@ -99,6 +134,7 @@ def main():
     elif args.pause: cmd_pause()
     elif args.resume: cmd_resume()
     elif args.status: cmd_status()
+    elif args.generate: cmd_generate()
     else:            parser.print_help()
 
 

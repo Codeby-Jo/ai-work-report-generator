@@ -1,3 +1,6 @@
-# Phase 1 dependencies only
+# Phase 1, 2, & 3 dependencies
 watchdog==4.0.1
 psutil==5.9.8
+openai>=1.0.0
+python-dotenv>=1.0.0
+python-docx>=1.1.0
