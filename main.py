@@ -17,8 +17,8 @@ import argparse
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import database
-import tracker as tracker_module
+from core import database
+from core import tracker as tracker_module
 
 _tracker = tracker_module.Tracker()
 
@@ -36,7 +36,7 @@ def cmd_start():
 
 
 def cmd_stop():
-    database.init_db()
+    print("[INFO] Stopping tracker...")
     database.set_tracker_state("stopped")
     print("[TRACKER] Stopped.")
 
@@ -51,7 +51,7 @@ def cmd_pause():
 
 
 def cmd_resume():
-    database.init_db()
+    print("[INFO] Resuming tracker...")
     database.set_tracker_state("running")
     print("[TRACKER] Resumed.")
 
@@ -83,7 +83,7 @@ def cmd_status():
 
 def cmd_generate():
     """Trigger the OpenAI report generator."""
-    import generator
+    from reporting import generator
     print("\n[INFO] Starting Phase 2: AI Report Generation...")
     
     # Check if GROQ_API_KEY is available
@@ -106,7 +106,7 @@ def cmd_generate():
         print("="*50 + "\n")
         
         # --- PHASE 3: Template Filling ---
-        import template_filler
+        from reporting import template_filler
         template_filler.fill_template(report)
         
     else:

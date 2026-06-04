@@ -3,7 +3,7 @@ import json
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
-import database
+from core import database
 
 # Load environment variables from .env file
 load_dotenv()

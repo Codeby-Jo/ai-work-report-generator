@@ -18,10 +18,12 @@ import time
 import platform
 from datetime import datetime
 
+import subprocess
+import ctypes
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
-
-import database
+from collections import defaultdict
+from core import database
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Configuration

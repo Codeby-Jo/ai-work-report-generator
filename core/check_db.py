@@ -16,9 +16,9 @@ import os
 import argparse
 from datetime import datetime
 from collections import defaultdict
+from core import database
 
 sys.path.insert(0, os.path.dirname(__file__))
-import database
 
 
 def print_logs(logs: list[dict], title: str = "Activity Logs"):
