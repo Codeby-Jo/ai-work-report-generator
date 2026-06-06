@@ -38,12 +38,23 @@ REPORT_SCHEMA = {
                     },
                     "description": "3-5 bullet points detailing the specific technical tasks completed"
                 },
+                "tools_used": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "description": "List of tools, languages, or technologies used today e.g. Python, VS Code, Git"
+                },
                 "blockers": {
                     "type": "string",
                     "description": "Any blockers or issues faced. Say 'None' if nothing obvious."
+                },
+                "next_steps": {
+                    "type": "string",
+                    "description": "What the developer plans to work on next — tomorrow's priorities"
                 }
             },
-            "required": ["report_title", "summary", "key_tasks", "blockers"],
+            "required": ["report_title", "summary", "key_tasks", "tools_used", "blockers", "next_steps"],
             "additionalProperties": False
         }
     }
@@ -94,7 +105,24 @@ def generate_report() -> dict | None:
 
     compressed_data = compress_logs(logs)
     print(f"[GENERATOR] Data compressed successfully.\n{compressed_data}\n")
-    print("[GENERATOR] Sending to OpenAI GPT-4o mini...")
+    
+    # NEW FEATURE: Pull git diff to get exact code changes!
+    git_diff = ""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["git", "diff", "HEAD"], 
+            cwd=os.path.join(os.path.dirname(__file__), ".."),
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            # Limit to last 3000 characters so we don't blow up the AI token limit
+            git_diff = result.stdout.strip()[-3000:]
+            print("[GENERATOR] Successfully pulled Git Diffs for exact code details!")
+    except Exception:
+        pass
+
+    print("[GENERATOR] Sending to AI (Llama 3.1)...")
 
     prompt = f"""
     You are an AI assistant tasked with generating a professional End-of-Day (EOD) work report for a software developer.
@@ -107,11 +135,18 @@ def generate_report() -> dict | None:
       "report_title": "A catchy, professional title",
       "summary": "A 2-3 sentence summary of the work",
       "key_tasks": ["task 1", "task 2", "task 3"],
-      "blockers": "Any blockers or issues faced. Say 'None' if nothing obvious."
+      "tools_used": ["Python", "VS Code", "Git"],
+      "blockers": "Any blockers or issues faced. Say 'None' if nothing obvious.",
+      "next_steps": "What to work on tomorrow or next session."
     }}
     
     Raw Data:
     {compressed_data}
+    
+    Exact Code Changes (Git Diff):
+    {git_diff if git_diff else "No git diff available."}
+    
+    Important: Use the Exact Code Changes to describe *specifically* what the developer coded, not just the file names.
     """
 
     try:
@@ -143,5 +178,9 @@ if __name__ == "__main__":
         print("✅ Key Tasks:")
         for task in report['key_tasks']:
             print(f"  - {task}")
+        print("\n🔧 Tools Used:")
+        for tool in report.get('tools_used', []):
+            print(f"  - {tool}")
         print(f"\n🛑 Blockers:\n  {report['blockers']}")
+        print(f"\n➡️  Next Steps:\n  {report['next_steps']}")
         print("="*50 + "\n")

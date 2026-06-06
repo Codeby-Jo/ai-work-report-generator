@@ -29,9 +29,9 @@ from core import database
 # Configuration
 # ──────────────────────────────────────────────────────────────────────────────
 
-WORKSPACE_DIR = os.path.join(os.path.dirname(__file__), "my_tracked_workspace")
+WORKSPACE_DIR = os.path.join(os.path.dirname(__file__), "..", "my_tracked_workspace")
 APP_POLL_INTERVAL = 60        # seconds between active-app polls
-IDLE_THRESHOLD_MINUTES = 10   # auto-pause after this many minutes of inactivity
+IDLE_THRESHOLD_MINUTES = 15   # auto-pause after 15 minutes of inactivity
 IDLE_CHECK_INTERVAL = 60      # how often to check idle state (seconds)
 
 # File extensions considered coding activity
@@ -89,6 +89,22 @@ def get_idle_seconds() -> float:
     system = platform.system()
 
     if system == "Linux":
+        # Try Wayland (GNOME) first
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["dbus-send", "--print-reply", "--dest=org.gnome.Mutter.IdleMonitor", 
+                 "/org/gnome/Mutter/IdleMonitor/Core", "org.gnome.Mutter.IdleMonitor.GetIdletime"],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                # Output looks like: uint64 13049
+                ms = int(result.stdout.strip().split()[-1])
+                return ms / 1000.0
+        except Exception:
+            pass
+
+        # Fallback to X11 xprintidle
         try:
             import subprocess
             result = subprocess.run(
@@ -256,15 +272,17 @@ def get_active_window_name() -> str:
         # Fallback: use psutil to get a list of running app names
         try:
             import psutil
-            interesting = []
-            for proc in psutil.process_iter(["name", "status"]):
+            important_apps = []
+            known_apps = ["zoom", "teams", "slack", "chrome", "firefox", "brave", "code", "pycharm", "terminal"]
+            for proc in psutil.process_iter(["name"]):
                 try:
-                    if proc.info["status"] == psutil.STATUS_RUNNING:
-                        interesting.append(proc.info["name"])
+                    name = proc.info["name"].lower()
+                    if any(app in name for app in known_apps):
+                        important_apps.append(name)
                 except Exception:
                     pass
-            if interesting:
-                return ", ".join(set(interesting[:5]))
+            if important_apps:
+                return ", ".join(set(important_apps[:3]))
         except Exception:
             pass
 
@@ -364,7 +382,6 @@ def _app_poll_loop(stop_event: threading.Event, paused_flag: threading.Event):
                 last_app = app_name
         stop_event.wait(timeout=APP_POLL_INTERVAL)
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Tracker Controller
 # ──────────────────────────────────────────────────────────────────────────────
@@ -415,6 +432,15 @@ class Tracker:
         self._observer = Observer()
         self._observer.schedule(event_handler, WORKSPACE_DIR, recursive=True)
         self._observer.start()
+
+        # 2. App Poller thread
+        self._poll_thread = threading.Thread(
+            target=_app_poll_loop,
+            args=(self._stop_event, self._paused_flag),
+            daemon=True,
+            name="AppPoller",
+        )
+        self._poll_thread.start()
 
         # 3. Idle monitor thread
         self._idle_thread = threading.Thread(

@@ -50,8 +50,8 @@ cd ai-work-report-generator
 ### 2. Create a virtual environment and install dependencies
 ```bash
 python3 -m venv venv
-source venv/bin/activate      # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+source venv/bin/activate        # On Windows: venv\Scripts\activate
+pip3 install -r requirements.txt
 ```
 
 ### 3. Get a free API key
@@ -74,27 +74,27 @@ EOD_Report_Template.docx
 
 ### Start tracking your work
 ```bash
-python main.py --start
+python3 main.py --start
 ```
 Run this in **Terminal 1** and leave it running in the background all day.
 
 ### Control the tracker (from Terminal 2)
 ```bash
-python main.py --pause     # Pause tracking (e.g., lunch break)
-python main.py --resume    # Resume tracking
-python main.py --status    # See what has been logged today
-python main.py --stop      # Stop the tracker
+python3 main.py --pause     # Pause tracking (e.g., lunch break)
+python3 main.py --resume    # Resume tracking
+python3 main.py --status    # See what has been logged today
+python3 main.py --stop      # Stop the tracker
 ```
 
 ### Generate your End-of-Day report
 ```bash
-python main.py --generate
+python3 main.py --generate
 ```
 This single command will:
 1. Fetch all activity from the database
 2. Send it to the Groq AI (Llama 3.1)
 3. Fill your Word template with the AI summary
-4. Save a new file: `EOD_Report_YYYY-MM-DD.docx`
+4. Save `EOD_Report_YYYY-MM-DD.docx`
 
 ---
 

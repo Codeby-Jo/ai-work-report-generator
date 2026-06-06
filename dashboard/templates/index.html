@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Work Report Generator — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Corporate SaaS Design System ──────────────────────────── */
+    :root {
+      --bg: #030712;
+      --sidebar: #0f172a;
+      --surface: #1e293b;
+      --surface-hover: #334155;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.5);
+      --accent: #8b5cf6;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --radius: 12px;
+      --shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+      --glass: rgba(15, 23, 42, 0.7);
+    }
+
+    body.light-mode {
+      --bg: #f8fafc;
+      --sidebar: #ffffff;
+      --surface: #ffffff;
+      --surface-hover: #f1f5f9;
+      --border: rgba(0, 0, 0, 0.1);
+      --text: #0f172a;
+      --muted: #64748b;
+      --primary: #2563eb;
+      --primary-glow: rgba(37, 99, 235, 0.3);
+      --shadow: 0 10px 40px -10px rgba(0,0,0,0.1);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Background Glow ───────────────────────────────────────── */
+    .bg-glow {
+      position: fixed;
+      top: -150px; left: -150px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+      opacity: 0.15;
+      filter: blur(80px);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    /* ── Sidebar ───────────────────────────────────────────────── */
+    .sidebar {
+      width: 260px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex; align-items: center; gap: 12px;
+      padding: 0 24px; margin-bottom: 40px;
+    }
+    .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 10px; display: grid; place-items: center;
+      font-size: 18px; color: white;
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+    .brand-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+
+    .nav-items { flex: 1; padding: 0 12px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px; border-radius: 8px;
+      color: var(--muted); text-decoration: none;
+      font-weight: 500; font-size: 15px;
+      transition: all 0.2s; margin-bottom: 4px;
+    }
+    .nav-item:hover { background: var(--surface); color: var(--text); }
+    .nav-item.active {
+      background: rgba(59, 130, 246, 0.1); color: var(--primary);
+      border-left: 3px solid var(--primary);
+    }
+
+    .tracker-status-box {
+      margin: 24px 16px; padding: 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; text-align: center;
+    }
+    .status-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+      background: var(--success); margin-right: 8px;
+      box-shadow: 0 0 10px var(--success);
+      animation: pulse 2s infinite;
+    }
+    .status-dot.paused { background: var(--warning); box-shadow: 0 0 10px var(--warning); }
+    .status-dot.stopped { background: var(--danger); animation: none; box-shadow: none; }
+    
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* ── Main Content ──────────────────────────────────────────── */
+    .main-content {
+      flex: 1; padding: 40px 60px;
+      max-width: 1400px;
+    }
+
+    .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; }
+    .header-top h1 { font-size: 32px; font-weight: 700; letter-spacing: -1px; }
+    .header-date { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--muted); background: var(--surface); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); }
+
+    /* ── Stats Grid ────────────────────────────────────────────── */
+    .stats-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 40px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); border-color: rgba(255,255,255,0.15); }
+    .stat-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+    .stat-value { font-size: 36px; font-weight: 700; color: var(--text); }
+    .stat-desc { font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+    /* ── Content Grid ──────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px; }
+    
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 28px;
+    }
+    .panel-title { font-size: 18px; font-weight: 600; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+
+    /* ── Feed ──────────────────────────────────────────────────── */
+    .feed { max-height: 400px; overflow-y: auto; padding-right: 8px; }
+    .feed::-webkit-scrollbar { width: 6px; }
+    .feed::-webkit-scrollbar-track { background: transparent; }
+    .feed::-webkit-scrollbar-thumb { background: var(--surface-hover); border-radius: 10px; }
+    
+    .feed-item {
+      display: flex; gap: 16px; margin-bottom: 16px; padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .feed-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .feed-time { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .feed-content { flex: 1; }
+    .feed-cat { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: rgba(255,255,255,0.1); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;}
+    .feed-text { font-size: 14px; color: var(--text); line-height: 1.5; }
+
+    /* ── Generate Action ───────────────────────────────────────── */
+    .generate-banner {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1));
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: var(--radius); padding: 40px;
+      text-align: center; position: relative; overflow: hidden;
+    }
+    .generate-banner h2 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+    .generate-banner p { color: var(--muted); font-size: 15px; max-width: 600px; margin: 0 auto 32px auto; }
+    
+    .btn {
+      padding: 14px 28px; border-radius: 8px; font-family: 'Outfit', sans-serif;
+      font-size: 15px; font-weight: 600; cursor: pointer; border: none;
+      transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px;
+      text-decoration: none;
+    }
+    .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 12px var(--primary-glow); }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px var(--primary-glow); background: #2563eb; }
+    .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--surface-hover); }
+
+    /* ── Report Output ─────────────────────────────────────────── */
+    #report-output { display: none; margin-top: 32px; }
+    .report-card { background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: var(--radius); padding: 32px; }
+    .report-header { font-size: 22px; font-weight: 700; margin-bottom: 24px; color: var(--success); }
+    .report-block { margin-bottom: 24px; }
+    .report-label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+    .report-text { font-size: 15px; line-height: 1.6; }
+    .tag { display: inline-block; padding: 4px 12px; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; font-weight: 500; margin: 0 8px 8px 0; }
+
+    /* ── Toast ──────────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 32px; right: 32px; z-index: 999;
+      padding: 16px 24px; border-radius: 8px; font-size: 14px; font-weight: 500;
+      color: white; transform: translateY(100px); opacity: 0;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: var(--shadow); border: 1px solid rgba(255,255,255,0.1);
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { background: #065f46; border-color: var(--success); }
+    .toast.error { background: #7f1d1d; border-color: var(--danger); }
+  </style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-icon">⚡</div>
+    <div class="brand-text">AI WorkTracker</div>
+  </div>
+  
+  <nav class="nav-items">
+    <a href="#" class="nav-item active" id="nav-dashboard" onclick="switchTab('dashboard')">📊 Dashboard Overview</a>
+    <a href="#" class="nav-item" id="nav-docs" onclick="switchTab('docs')">📚 Documentation</a>
+    <a href="#" class="nav-item" id="nav-settings" onclick="switchTab('settings')">⚙️ Settings</a>
+  </nav>
+
+  <div style="flex:1;"></div>
+
+  <div class="tracker-status-box">
+    <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px; text-transform: uppercase; font-weight: 700;">System Status</div>
+    <div style="font-weight: 600; font-size: 15px; display: flex; align-items: center; justify-content: center;">
+      <span class="status-dot {% if tracker_state == 'paused' %}paused{% elif tracker_state == 'stopped' %}stopped{% endif %}" id="status-dot"></span>
+      <span id="status-text">{{ tracker_state.upper() }}</span>
+    </div>
+  </div>
+</aside>
+
+<!-- Main Content -->
+<main class="main-content">
+  
+  <!-- DASHBOARD PAGE -->
+  <div id="page-dashboard">
+    <div class="header-top">
+      <h1>Corporate Workspace</h1>
+      <div class="header-date">{{ today }}</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-title">Total Events Logged</div>
+        <div class="stat-value" id="total-events">{{ total_events }}</div>
+        <div class="stat-desc">across all applications</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Work Categories</div>
+        <div class="stat-value">{{ category_stats | length }}</div>
+        <div class="stat-desc">detected by AI Engine</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Last Sync</div>
+        <div class="stat-value" style="font-size: 28px; padding-top: 8px;" id="last-updated">Just now</div>
+        <div class="stat-desc">Auto-polling via WebSocket/API</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Activity Stream -->
+      <div class="panel">
+        <div class="panel-title">📡 Real-Time Activity Stream</div>
+        {% if recent_events %}
+          <div class="feed" id="activity-feed">
+            {% for evt in recent_events %}
+            <div class="feed-item">
+              <div class="feed-time">{{ evt.timestamp[11:16] }}</div>
+              <div class="feed-content">
+                <div class="feed-cat" style="color:{{ evt.text_color }};">{{ evt.category }}</div>
+                <div class="feed-text">{{ evt.details }}</div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div style="color: var(--muted); text-align: center; padding: 40px 0;">No telemetry data received yet.</div>
+        {% endif %}
+      </div>
+
+      <!-- Generate Action -->
+      <div style="display: flex; flex-direction: column; gap: 24px;">
+        <div class="generate-banner">
+          <h2>Generate Executive Report</h2>
+          <p>Compile all telemetry data and Git Diffs into a professional End-of-Day Microsoft Word document using Groq Llama 3.1 AI.</p>
+          <div style="display: flex; gap: 16px; justify-content: center;">
+            <button class="btn btn-primary" id="generate-btn" onclick="generateReport()" {% if not has_api_key %}disabled{% endif %}>
+              <span id="generate-icon">🤖</span>
+              <span id="generate-label">Run AI Generator</span>
+            </button>
+            <form method="GET" action="/api/download" style="display:inline;">
+              <button type="submit" class="btn btn-secondary">📥 Download Today's .docx</button>
+            </form>
+          </div>
+          {% if not has_api_key %}
+          <div style="margin-top: 16px; color: var(--danger); font-size: 13px;">API Key missing in .env</div>
+          {% endif %}
+        </div>
+
+        <!-- Report Output Container -->
+        <div id="report-output">
+          <div class="report-card">
+            <div class="report-header" id="report-title"></div>
+            <div class="report-block">
+              <div class="report-label">Executive Summary</div>
+              <div class="report-text" id="report-summary"></div>
+            </div>
+            <div class="report-block">
+              <div class="report-label">Technical Tasks Completed</div>
+              <div id="report-tasks"></div>
+            </div>
+            <div class="grid-2" style="margin-bottom:0;">
+              <div class="report-block">
+                <div class="report-label">Blockers</div>
+                <div class="report-text" id="report-blockers" style="color: var(--warning);"></div>
+              </div>
+              <div class="report-block">
+                <div class="report-label">Next Steps</div>
+                <div class="report-text" id="report-next" style="color: var(--primary);"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div> <!-- End Dashboard Page -->
+
+  <!-- DOCUMENTATION PAGE -->
+  <div id="page-docs" style="display: none;">
+    <div class="header-top">
+      <h1>Report Documentation Archive</h1>
+      <div class="header-date">All Past Reports</div>
+    </div>
+    
+    <div class="panel">
+      <div class="panel-title">📚 Historical Daily Reports</div>
+      <p style="color: var(--muted); margin-bottom: 24px;">Download past AI-generated reports here. You can use these to compile your Weekly Report.</p>
+      
+      {% if past_reports %}
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          {% for report in past_reports %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="font-size: 24px;">📄</div>
+                <div>
+                  <div style="font-weight: 600; color: var(--text);">{{ report }}</div>
+                  <div style="font-size: 12px; color: var(--muted);">Microsoft Word Document</div>
+                </div>
+              </div>
+              <form method="GET" action="/api/download">
+                <input type="hidden" name="file" value="{{ report }}">
+                <button type="submit" class="btn btn-secondary" style="padding: 8px 16px; font-size: 13px;">Download</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="text-align: center; color: var(--muted); padding: 40px 0;">No past reports found.</div>
+      {% endif %}
+      
+      <!-- Weekly Report Idea Box -->
+      <div style="margin-top: 40px; padding: 24px; background: rgba(59, 130, 246, 0.05); border: 1px dashed var(--primary); border-radius: var(--radius);">
+        <h3 style="color: var(--primary); margin-bottom: 8px;">💡 Weekly Report Feature Idea</h3>
+        <p style="color: var(--muted); font-size: 14px; line-height: 1.6;">
+          To create a Weekly Report, we could add a Python script that reads all the daily <code style="background:var(--surface);padding:2px 6px;border-radius:4px;">EOD_Report_*.docx</code> files from this week, combines their contents, and feeds them back into Llama 3.1 with a prompt like <em>"Summarize this week's progress"</em>. This would automatically generate a high-level `Weekly_Report.docx`!
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div id="page-settings" style="display: none;">
+    <div class="header-top">
+      <h1>Settings & Preferences</h1>
+    </div>
+    <div class="panel">
+      <div class="panel-title">⚙️ Theme & UI</div>
+      <div style="display: flex; flex-direction: column; gap: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
+          <div>
+            <div style="font-weight: 600;">Dark Mode</div>
+            <div style="font-size: 13px; color: var(--muted);">Toggle between light and dark themes instantly</div>
+          </div>
+          <button class="btn btn-primary" id="btn-theme" onclick="toggleTheme()">Dark Mode</button>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
+          <div>
+            <div style="font-weight: 600;">Background Glow</div>
+            <div style="font-size: 13px; color: var(--muted);">Enable the ambient background gradient</div>
+          </div>
+          <button class="btn btn-primary" id="btn-glow" onclick="toggleGlow()">Enabled</button>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px;">
+          <div>
+            <div style="font-weight: 600;">Idle Timeout</div>
+            <div style="font-size: 13px; color: var(--muted);">Minutes before tracker auto-pauses</div>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" id="idle-input" value="15" style="width: 60px; padding: 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font-family: 'JetBrains Mono', monospace;">
+            <button class="btn btn-secondary" style="padding: 8px 16px;" onclick="saveIdleTimeout()">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Tab Switching Logic
+  function switchTab(tabId) {
+    document.getElementById('page-dashboard').style.display = 'none';
+    document.getElementById('page-docs').style.display = 'none';
+    document.getElementById('page-settings').style.display = 'none';
+    
+    document.getElementById('nav-dashboard').classList.remove('active');
+    document.getElementById('nav-docs').classList.remove('active');
+    document.getElementById('nav-settings').classList.remove('active');
+    
+    document.getElementById('page-' + tabId).style.display = 'block';
+    document.getElementById('nav-' + tabId).classList.add('active');
+  }
+  function showToast(msg, type = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast ${type}`;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 4000);
+  }
+
+  async function generateReport() {
+    const btn = document.getElementById('generate-btn');
+    const icon = document.getElementById('generate-icon');
+    const label = document.getElementById('generate-label');
+    
+    btn.disabled = true;
+    icon.textContent = '⏳';
+    label.textContent = 'Processing Data...';
+
+    try {
+      const res = await fetch('/api/generate', { method: 'POST' });
+      const data = await res.json();
+      
+      if (!res.ok) throw new Error(data.error || 'Failed to generate');
+      
+      const r = data.report;
+      document.getElementById('report-title').textContent = r.report_title;
+      document.getElementById('report-summary').textContent = r.summary;
+      document.getElementById('report-blockers').textContent = r.blockers;
+      document.getElementById('report-next').textContent = r.next_steps;
+      
+      const tasksEl = document.getElementById('report-tasks');
+      tasksEl.innerHTML = (r.key_tasks || []).map(t => `<span class="tag">${t}</span>`).join('');
+      
+      document.getElementById('report-output').style.display = 'block';
+      showToast('Successfully generated AI Corporate Report!');
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      icon.textContent = '🤖';
+      label.textContent = 'Run AI Generator';
+    }
+  }
+
+  async function refreshStatus() {
+    try {
+      const res = await fetch('/api/status');
+      const data = await res.json();
+      document.getElementById('total-events').textContent = data.total_events;
+      document.getElementById('status-text').textContent = data.tracker_state.toUpperCase();
+      const dot = document.getElementById('status-dot');
+      dot.className = 'status-dot ' + (data.tracker_state === 'paused' ? 'paused' : data.tracker_state === 'stopped' ? 'stopped' : '');
+    } catch (_) {}
+  }
+  setInterval(refreshStatus, 10000);
+  // Settings Logic
+  let isDarkMode = true;
+  function toggleTheme() {
+    isDarkMode = !isDarkMode;
+    const btn = document.getElementById('btn-theme');
+    if (isDarkMode) {
+      document.body.classList.remove('light-mode');
+      btn.textContent = 'Dark Mode';
+      btn.className = 'btn btn-primary';
+    } else {
+      document.body.classList.add('light-mode');
+      btn.textContent = 'Light Mode';
+      btn.className = 'btn btn-secondary';
+    }
+  }
+
+  let isGlowEnabled = true;
+  function toggleGlow() {
+    isGlowEnabled = !isGlowEnabled;
+    const btn = document.getElementById('btn-glow');
+    const glowEl = document.querySelector('.bg-glow');
+    if (isGlowEnabled) {
+      glowEl.style.display = 'block';
+      btn.textContent = 'Enabled';
+      btn.className = 'btn btn-primary';
+    } else {
+      glowEl.style.display = 'none';
+      btn.textContent = 'Disabled';
+      btn.className = 'btn btn-secondary';
+    }
+  }
+
+  async function saveIdleTimeout() {
+    const val = parseInt(document.getElementById('idle-input').value, 10);
+    if (isNaN(val) || val < 1 || val > 120) {
+      showToast('Timeout must be between 1 and 120 minutes', 'error');
+      return;
+    }
+    
+    try {
+      const res = await fetch('/api/settings/idle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timeout: val })
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        showToast(`Saved ${val} mins! Restart tracking terminal to apply.`);
+      } else {
+        showToast('Error: ' + data.error, 'error');
+      }
+    } catch (err) {
+      showToast('Network error while saving.', 'error');
+    }
+  }
+</script>
+</body>
+</html>

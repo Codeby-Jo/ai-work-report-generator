@@ -2,12 +2,12 @@
 main.py — CLI for AI Work Report Generator
 
 Commands:
-    python main.py --start      Start the background activity tracker
-    python main.py --stop       Stop the tracker
-    python main.py --pause      Pause tracking (privacy control)
-    python main.py --resume     Resume tracking
-    python main.py --status     Show today's activity log
-    python main.py --generate   Generate the AI EOD report (Phase 2)
+    python3 main.py --start      Start the background activity tracker
+    python3 main.py --stop       Stop the tracker
+    python3 main.py --pause      Pause tracking (privacy control)
+    python3 main.py --resume     Resume tracking
+    python3 main.py --status     Show today's activity log
+    python3 main.py --generate   Generate the AI EOD report + fill Word template
 """
 
 import sys
@@ -57,39 +57,29 @@ def cmd_resume():
 
 
 def cmd_status():
+    """Show today's activity log using the check_db module."""
+    from core import database, check_db
     database.init_db()
     logs = database.get_today_logs()
     state = database.get_tracker_state()
 
-    from collections import defaultdict
-    print(f"\n📊 Today's Activity  |  Tracker: {state.upper()}  |  Events: {len(logs)}")
-    print("━" * 60)
+    print(f"\n📊 Tracker Status: {state.upper()}")
+    check_db.print_logs(logs, "Today's Activity Log")
+    check_db.print_stats(logs)
 
     if not logs:
-        print("  No activity logged yet. Run: python main.py --start\n")
-        return
-
-    by_category = defaultdict(list)
-    for log in logs:
-        by_category[log["category"]].append(log)
-
-    for category, events in by_category.items():
-        print(f"\n  [{category}]  ({len(events)} events)")
-        for evt in events[-5:]:
-            ts = evt["timestamp"][11:16]
-            print(f"    {ts}  {evt['details']}")
+        print("  No activity logged yet. Run: python3 main.py --start\n")
     print()
 
 
 def cmd_generate():
-    """Trigger the OpenAI report generator."""
-    from reporting import generator
+    """Trigger the AI report generator + template filler + PDF conversion."""
+    from reporting import generator, template_filler
     print("\n[INFO] Starting Phase 2: AI Report Generation...")
-    
-    # Check if GROQ_API_KEY is available
+
     if not os.getenv("GROQ_API_KEY"):
         print("[ERROR] GROQ_API_KEY is not set!")
-        print("Please create a .env file and add your API key like this:")
+        print("Please add your API key to the .env file:")
         print("GROQ_API_KEY=gsk_your_key_here")
         return
 
@@ -102,40 +92,44 @@ def cmd_generate():
         print("✅ Key Tasks:")
         for task in report['key_tasks']:
             print(f"  - {task}")
+        print("\n🔧 Tools Used:")
+        for tool in report.get('tools_used', []):
+            print(f"  - {tool}")
         print(f"\n🛑 Blockers:\n  {report['blockers']}")
+        print(f"\n➡️  Next Steps:\n  {report['next_steps']}")
         print("="*50 + "\n")
-        
-        # --- PHASE 3: Template Filling ---
-        from reporting import template_filler
+
+        # Phase 3: Fill Word template
+        today_str = __import__('datetime').datetime.now().strftime("%Y-%m-%d")
+        docx_path = f"EOD_Report_{today_str}.docx"
         template_filler.fill_template(report)
-        
+        print(f"[INFO] Report ready: {docx_path}")
     else:
         print("[ERROR] Could not generate report. Check logs above.")
 
 
-
 def main():
     parser = argparse.ArgumentParser(
-        prog="python main.py",
+        prog="python3 main.py",
         description="AI Work Report Generator CLI",
     )
     group = parser.add_mutually_exclusive_group()
-    group.add_argument("--start",  action="store_true", help="Start the tracker")
-    group.add_argument("--stop",   action="store_true", help="Stop the tracker")
-    group.add_argument("--pause",  action="store_true", help="Pause tracking")
-    group.add_argument("--resume", action="store_true", help="Resume tracking")
-    group.add_argument("--status", action="store_true", help="Show today's activity")
+    group.add_argument("--start",    action="store_true", help="Start the tracker")
+    group.add_argument("--stop",     action="store_true", help="Stop the tracker")
+    group.add_argument("--pause",    action="store_true", help="Pause tracking")
+    group.add_argument("--resume",   action="store_true", help="Resume tracking")
+    group.add_argument("--status",   action="store_true", help="Show today's activity")
     group.add_argument("--generate", action="store_true", help="Generate AI work report")
 
     args = parser.parse_args()
 
-    if args.start:   cmd_start()
-    elif args.stop:  cmd_stop()
-    elif args.pause: cmd_pause()
-    elif args.resume: cmd_resume()
-    elif args.status: cmd_status()
+    if   args.start:    cmd_start()
+    elif args.stop:     cmd_stop()
+    elif args.pause:    cmd_pause()
+    elif args.resume:   cmd_resume()
+    elif args.status:   cmd_status()
     elif args.generate: cmd_generate()
-    else:            parser.print_help()
+    else:               parser.print_help()
 
 
 if __name__ == "__main__":
